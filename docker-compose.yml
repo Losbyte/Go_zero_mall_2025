@@ -1,0 +1,132 @@
+version: "3.8"
+networks:
+  backend:
+    driver: bridge
+services:
+  golang: # 自定义容器名称
+    build:
+      context: ./golang                  # 指定构建使用的 Dockerfile 文件
+    privileged: true
+    volumes: # 设置挂载目录
+      - ./code:/usr/src/code  # 引用 .env 配置中 CODE_PATH_HOST 变量，将宿主机上代码存放的目录挂载到容器中 /usr/src/code 目录
+    ports: # 设置端口映射
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+      - "8003:8003"
+      - "9000:9000"
+      - "9001:9001"
+      - "9002:9002"
+      - "9003:9003"
+    stdin_open: true                     # 打开标准输入，可以接受外部输入
+    tty: true
+    networks:
+      - backend
+    restart: always                      # 指定容器退出后的重启策略为始终重启
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.12
+    container_name: etcd
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+    ports:
+      - "2379:2379"
+    networks:
+      - backend
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    ports:
+      - "3311:3306"
+    privileged: true
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=123456
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    networks:
+      - backend
+  redis:
+    image: redis:5.0
+    container_name: redis
+    privileged: true
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - backend
+  mysql-manage:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - "1000:80"
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=mysql
+      - PMA_PORT=3311
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=123456
+      - MYSQL_ROOT_PASSWORD=123456
+    depends_on:
+      - mysql
+    networks:
+      - backend
+  redis-manage:
+    image: erikdubbelboer/phpredisadmin
+    container_name: phpredisadmin
+    ports:
+      - "2000:80"
+    environment:
+      - REDIS_1_HOST=redis
+      - REDIS_1_PORT=6379
+      - ADMIN_USER=admin
+      - ADMIN_PASS=123456
+    depends_on:
+      - redis
+    networks:
+      - backend
+  prometheus:
+    image: bitnami/prometheus
+    container_name: prometheus.yml
+    privileged: true
+    volumes:
+      - ./prometheus/prometheus.yml:/opt/bitnami/prometheus/conf/prometheus.yml
+    ports:
+      - "3000:9090"
+    restart: always
+    networks:
+      - backend
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "4000:3000"
+    restart: always
+    networks:
+      - backend
+  jaeger:
+    image: jaegertracing/all-in-one:1.28
+    container_name: jaeger
+    ports:
+      - "5000:16686"
+    restart: always
+    networks:
+      - backend
+  dtm:
+    image: yedf/dtm
+    container_name: dtm
+    entrypoint:
+      - "/app/dtm/dtm"
+      - "-c=/app/dtm/configs/config.yaml"
+    volumes:
+      - ./dtm/config.yml:/app/dtm/configs/config.yaml
+    ports:
+      - "36789:36789"
+      - "36790:36790"
+    restart: always
+    networks:
+      - backend
+
